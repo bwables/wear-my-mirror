@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wear My Mirror Poster</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one US Letter page, black field, title top, QR centered, three steps, credit at the foot. Prints as is. */
+:root{ --black:#000; --ink:#f3f1ec; --dim:#a7a49d; --gold:#f2c66d;
+  --display:"Instrument Serif","Iowan Old Style",Georgia,serif; --sans:"Instrument Sans","Avenir Next","Segoe UI",system-ui,sans-serif; color-scheme:dark }
+*{box-sizing:border-box}
+html,body{margin:0;background:#333;color:var(--ink);font:16px/1.4 var(--sans)}
+@page{size:letter;margin:0}
+.page{width:8.5in;height:11in;margin:24px auto;background:var(--black);padding:.6in .75in .5in;display:flex;flex-direction:column;align-items:center;text-align:center;gap:.22in;overflow:hidden;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+.kicker{font-size:11pt;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin:0}
+h1{font:400 84pt/.9 var(--display);margin:0}
+h1 em{color:var(--gold)}
+.lede{font-size:16pt;max-width:5.6in;margin:0}
+#qr{background:#fff;padding:.16in;border-radius:.16in;width:3.3in;height:3.3in;flex:none}
+#qr svg{width:100%;height:100%;display:block}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:.25in;width:100%;margin:0;padding:0;list-style:none}
+.steps li{font-size:12.5pt}
+.steps b{display:block;font:italic 400 24pt/1 var(--display);color:var(--gold);margin-bottom:4px}
+.url{font-size:11pt;color:var(--dim);word-break:break-all;margin:0}
+.privacy{font-size:10.5pt;color:var(--dim);max-width:5.8in;margin:0}
+.foot{margin-top:auto;font-size:10.5pt;color:var(--dim)}
+.tools{max-width:8.5in;margin:16px auto 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:#ddd;font-size:14px;padding:0 16px}
+.tools input{flex:1;min-width:240px;font:inherit;padding:8px 10px;border-radius:6px;border:1px solid #666;background:#222;color:#fff}
+.tools button{font:inherit;padding:8px 14px;border-radius:6px;border:0;background:var(--ink);color:#111;cursor:pointer}
+@media print{ html,body{background:#000} .tools{display:none} .page{margin:0} }
+@media screen and (max-width:900px){ .page{transform:scale(.45);transform-origin:top center;margin-bottom:-6in} }
+</style>
+</head>
+<body>
+<div class="tools">
+  <label for="u">QR points to</label><input id="u" type="text"><button id="print">Print</button>
+</div>
+<div class="page">
+  <p class="kicker">ART 104A · Digital Media I · Davis &amp; Elkins College</p>
+  <h1>Wear My <em>Mirror</em></h1>
+  <p class="lede">Student art you wear on your own face. Scan, turn on your camera, and try them on.</p>
+  <div id="qr" role="img" aria-label="QR code for the Wear My Mirror gallery"></div>
+  <p class="url" id="urlText"></p>
+  <ul class="steps">
+    <li><b>Scan</b>with your phone camera</li>
+    <li><b>Allow</b>the camera when it asks</li>
+    <li><b>Swipe</b>to try each student's piece</li>
+  </ul>
+  <p class="privacy">Face tracking runs on your phone. Nothing is recorded or uploaded unless you take a photo and choose to save or share it.</p>
+  <p class="foot">Fall 2026 · Prof. Brandon Ables</p>
+</div>
+<script src="qrcode.js"></script>
+<script>
+const input = document.getElementById("u");
+const params = new URLSearchParams(location.search);
+const galleryURL = params.get("url") || new URL("./", location.href).href;
+input.value = galleryURL;
+function draw(){
+  const url = input.value.trim();
+  const qr = qrcode(0, "M"); qr.addData(url); qr.make();
+  document.getElementById("qr").innerHTML = qr.createSvgTag({ cellSize:8, margin:0, scalable:true });
+  document.getElementById("urlText").textContent = url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+}
+input.addEventListener("input", draw);
+document.getElementById("print").addEventListener("click", ()=>window.print());
+draw();
+</script>
+</body>
+</html>

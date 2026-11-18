@@ -1,8 +1,9 @@
 {
-  "_example": {
-    "file": "clips/Ables_MIRROR_phone.mp4",
-    "credit": "Prof Ables",
-    "sentence": "Look into my mirror and you'll see my current project, walking and swinging my arms to type Morse code."
-  },
-  "pieces": []
+  "pieces": [
+    {
+      "file": "clips/Ables_MIRROR_phone.mp4",
+      "credit": "Prof Ables",
+      "sentence": "Look into my mirror and you'll see my current project, walking and swinging my arms to type Morse code."
+    }
+  ]
 }

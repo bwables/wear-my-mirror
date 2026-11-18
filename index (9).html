@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Wear My Mirror">
+<meta name="description" content="Wear student art on your own face. A face-tracking gallery from ART 104A Digital Media I at Davis & Elkins College.">
+<title>Wear My Mirror</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one full-screen stage (camera + art). A start screen over it, then a thin top bar and a bottom caption card. Single dark look on purpose: black is the mirror. */
+:root{
+  --black:#000;
+  --ink:#f3f1ec;
+  --dim:#a7a49d;
+  --line:rgba(243,241,236,.18);
+  --glass:rgba(10,10,10,.62);
+  --gold:#f2c66d;
+  --display:"Instrument Serif","Iowan Old Style","Palatino Linotype",Georgia,serif;
+  --sans:"Instrument Sans","Avenir Next","Segoe UI",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--black);color:var(--ink);font:16px/1.45 var(--sans);overflow:hidden;overscroll-behavior:none}
+[hidden]{display:none!important}
+canvas#stage{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:pan-y}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+button:focus-visible,a:focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:8px}
+
+/* start screen */
+#start{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:flex-end;gap:18px;
+  padding:max(24px,env(safe-area-inset-top)) max(22px,env(safe-area-inset-right)) max(28px,env(safe-area-inset-bottom)) max(22px,env(safe-area-inset-left));
+  background:linear-gradient(to bottom,rgba(0,0,0,0) 30%,rgba(0,0,0,.85) 62%,#000 100%);z-index:3}
+#start .kicker{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:0}
+#start h1{font:400 clamp(54px,15vw,96px)/.92 var(--display);margin:0;letter-spacing:-.01em}
+#start h1 em{font-style:italic;color:var(--gold)}
+#start p.lede{margin:0;max-width:34em;font-size:17px}
+#start .privacy{margin:0;font-size:13px;color:var(--dim);max-width:34em}
+.go{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;max-width:420px;padding:16px 20px;border-radius:999px;
+  background:var(--ink);color:#111;font-weight:600;font-size:17px}
+.go:active{transform:scale(.98)}
+#startMsg{margin:0;font-size:14px;color:var(--gold);min-height:1.2em}
+#start .credit{margin:0;font-size:12px;color:var(--dim);letter-spacing:.02em}
+
+/* live UI */
+#top{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;z-index:2;
+  padding:calc(env(safe-area-inset-top) + 10px) max(14px,env(safe-area-inset-right)) 10px max(14px,env(safe-area-inset-left))}
+.chip{display:flex;align-items:center;gap:8px;background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:8px 14px;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-size:14px}
+.chip .t{font:italic 400 18px/1 var(--display)}
+.round{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--glass);border:1px solid var(--line);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.round svg{width:22px;height:22px}
+#topRight{display:flex;gap:10px}
+
+#bottom{position:fixed;left:0;right:0;bottom:0;z-index:2;display:flex;flex-direction:column;align-items:center;gap:14px;
+  padding:0 max(14px,env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 16px) max(14px,env(safe-area-inset-left))}
+#card{width:100%;max-width:520px;background:var(--glass);border:1px solid var(--line);border-radius:18px;padding:12px 14px;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);display:grid;grid-template-columns:44px 1fr 44px;gap:8px;align-items:center}
+#card .who{font:400 22px/1.1 var(--display);margin:0}
+#card .said{margin:3px 0 0;font-size:14px;color:var(--dim)}
+#card .said b{color:var(--ink);font-weight:500}
+#card .meta{min-width:0;text-align:center}
+.arrow{width:44px;height:44px;border-radius:50%;display:grid;place-items:center}
+.arrow svg{width:22px;height:22px}
+#controls{display:flex;align-items:center;justify-content:center;gap:28px}
+#shutter{width:72px;height:72px;border-radius:50%;border:4px solid var(--ink);display:grid;place-items:center}
+#shutter span{width:56px;height:56px;border-radius:50%;background:var(--ink);transition:transform .12s}
+#shutter:active span{transform:scale(.9)}
+.side{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:var(--glass);border:1px solid var(--line);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+#recBtn i{width:20px;height:20px;border-radius:50%;background:#ff4d4d;transition:border-radius .15s,transform .15s}
+#recBtn[aria-pressed="true"]{border-color:#ff4d4d}
+#recBtn[aria-pressed="true"] i{border-radius:4px;transform:scale(.85)}
+.spacer{width:52px;height:52px}
+#recTime{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 64px);z-index:2;background:rgba(200,30,30,.85);
+  border-radius:999px;padding:5px 12px;font-size:14px;font-variant-numeric:tabular-nums}
+#shotVid{width:100%;max-height:62vh;object-fit:contain;border-radius:14px;display:block;background:#000}
+#hint{position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);z-index:2;background:var(--glass);border:1px solid var(--line);
+  border-radius:14px;padding:10px 16px;font-size:15px;text-align:center;max-width:80vw;pointer-events:none;transition:opacity .3s}
+#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:4;transition:opacity .25s}
+
+/* sheets */
+.sheet{position:fixed;inset:0;z-index:5;background:rgba(0,0,0,.82);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  overflow-y:auto;padding:calc(env(safe-area-inset-top) + 16px) max(18px,env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 24px) max(18px,env(safe-area-inset-left))}
+.sheet .inner{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.sheet header{display:flex;justify-content:space-between;align-items:center}
+.sheet h2{font:400 34px/1 var(--display);margin:0}
+.sheet h3{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:6px 0 0;font-weight:600}
+.sheet p{margin:0;font-size:15px}
+#list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+#list button{width:100%;text-align:left;padding:12px 4px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:28px 1fr;gap:10px}
+#list .n{color:var(--dim);font-variant-numeric:tabular-nums;font-size:14px;padding-top:3px}
+#list .nm{font:400 20px/1.15 var(--display)}
+#list .sn{display:block;font-size:13px;color:var(--dim);margin-top:2px}
+#list button[aria-current="true"] .nm{color:var(--gold)}
+#shotImg{width:100%;max-height:62vh;object-fit:contain;border-radius:14px;display:block}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row .go{flex:1;min-width:140px}
+.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+@media (prefers-reduced-motion: reduce){#flash,#hint,#shutter span{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="stage" aria-label="Camera with student artwork on your face"></canvas>
+<video id="cam" playsinline muted autoplay hidden></video>
+
+<section id="start" aria-labelledby="title">
+  <p class="kicker">ART 104A · Digital Media I · Davis &amp; Elkins College</p>
+  <h1 id="title">Wear My <em>Mirror</em></h1>
+  <p class="lede">Each student animated something from their own life to wear on <b>your</b> face. Turn on your camera and try them on.</p>
+  <button class="go" id="startBtn">Turn on my camera</button>
+  <p id="startMsg" role="status"></p>
+  <p class="privacy">Your camera stays on your phone. Nothing is recorded or uploaded unless you take a photo and choose to save or share it.</p>
+  <p class="credit" id="countLine"></p>
+</section>
+
+<header id="top" hidden>
+  <button class="chip" id="openList" aria-label="All pieces"><span class="t">Wear My Mirror</span><span id="counter"></span></button>
+  <div id="topRight">
+    <button class="round" id="flipBtn" aria-label="Switch camera">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><path d="M9.5 13.5a2.5 2.5 0 0 1 4.6-1.4M14.5 12.5a2.5 2.5 0 0 1-4.6 1.4"/><path d="M14 10.5v1.8h-1.8M10 15.5v-1.8h1.8"/></svg>
+    </button>
+    <button class="round" id="infoBtn" aria-label="About this project">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.1"/></svg>
+    </button>
+  </div>
+</header>
+
+<div id="recTime" hidden>● 0:00</div>
+<div id="hint" hidden>Hold your phone at arm's length and look at the screen</div>
+
+<footer id="bottom" hidden>
+  <div id="card">
+    <button class="arrow" id="prevBtn" aria-label="Previous piece"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div class="meta" aria-live="polite"><p class="who" id="who"></p><p class="said" id="said"></p></div>
+    <button class="arrow" id="nextBtn" aria-label="Next piece"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+  </div>
+  <div id="controls"><button class="side" id="recBtn" aria-label="Record a video" aria-pressed="false"><i></i></button><button id="shutter" aria-label="Take a photo"><span></span></button><span class="spacer" aria-hidden="true"></span></div>
+</footer>
+<div id="flash"></div>
+
+<div class="sheet" id="listSheet" hidden role="dialog" aria-labelledby="listTitle">
+  <div class="inner">
+    <header><h2 id="listTitle">The pieces</h2><button class="round" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+    <ul id="list"></ul>
+  </div>
+</div>
+
+<div class="sheet" id="aboutSheet" hidden role="dialog" aria-labelledby="aboutTitle">
+  <div class="inner">
+    <header><h2 id="aboutTitle">About</h2><button class="round" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+    <p><b>Wear My Mirror</b> began as a smart mirror: a TV behind two-way glass, with a camera that finds each face and places an animation on its reflection. Black pixels stay mirror; only light shows through.</p>
+    <p>Students in ART 104A Digital Media I finished one sentence, <i>“Look into my mirror and you'll wear ___, because ___,”</i> and animated the answer in Photoshop and After Effects. The meaning is theirs. The face is yours.</p>
+    <h3>Your privacy</h3>
+    <p>Face tracking runs on your phone. The camera image is never recorded or sent anywhere. A photo leaves your phone only if you save or share it.</p>
+    <h3>Credits</h3>
+    <p>ART 104A Digital Media I, Fall 2026 · Davis &amp; Elkins College · Prof. Brandon Ables</p>
+  </div>
+</div>
+
+<div class="sheet" id="shotSheet" hidden role="dialog" aria-labelledby="shotTitle">
+  <div class="inner">
+    <header><h2 id="shotTitle">Your photo</h2><button class="round" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+    <img id="shotImg" alt="Your photo wearing the piece">
+    <video id="shotVid" playsinline muted loop autoplay hidden></video>
+    <div class="row"><button class="go" id="shareBtn">Share</button><a class="go ghost" id="saveLink" download="wear-my-mirror.jpg">Save</a></div>
+    <p id="shotTip" style="font-size:13px;color:var(--dim)">On iPhone, you can also press and hold the photo, then tap Save to Photos.</p>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ---------- Template contract (matches the class Mirror Player) ---------- */
+const TPL = { SIZE:1080, AX:540, AY:540, EYE:120 };
+const MOUTH_K = 0.9;
+const MP_VER = "0.10.21";
+const MODEL = "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite";
+const MAX_FACES = 3;
+
+const $ = id => document.getElementById(id);
+const stage = $("stage"), ctx = stage.getContext("2d");
+const cam = $("cam");
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  stage.width = Math.round(W*DPR); stage.height = Math.round(H*DPR);
+}
+window.addEventListener("resize", resize); resize();
+
+/* ---------- Pieces ---------- */
+let pieces = [];
+let cur = 0;
+const demoCv = document.createElement("canvas"); demoCv.width = demoCv.height = 540;
+const dctx = demoCv.getContext("2d");
+function renderDemo(now){
+  const T = 6, t = (now/1000 % T)/T, c = 270;
+  dctx.globalCompositeOperation = "source-over"; dctx.fillStyle = "#000"; dctx.fillRect(0,0,540,540);
+  dctx.globalCompositeOperation = "lighter";
+  for (let i=0;i<16;i++) for (let k=0;k<7;k++){
+    const a = (t - k*0.012 + i/16)*Math.PI*2, tilt = .35;
+    const x = Math.cos(a)*118, y = Math.sin(a)*158;
+    const xr = x*Math.cos(tilt)-y*Math.sin(tilt), yr = x*Math.sin(tilt)+y*Math.cos(tilt);
+    const front = Math.sin(a) > 0 ? 1 : .55, hue = (i/16*360 + t*360) % 360, r = (k===0?7:6-k*.7)*front;
+    if (r <= 0) continue;
+    const g = dctx.createRadialGradient(c+xr,c+yr,0,c+xr,c+yr,r*3.2);
+    g.addColorStop(0,`hsla(${hue},100%,${k?60:85}%,${(1-k/7)*front})`); g.addColorStop(1,`hsla(${hue},100%,50%,0)`);
+    dctx.fillStyle = g; dctx.beginPath(); dctx.arc(c+xr,c+yr,r*3.2,0,Math.PI*2); dctx.fill();
+  }
+  const cy = 112 + Math.sin(t*Math.PI*2)*5;
+  dctx.strokeStyle = "hsla(45,100%,65%,.95)"; dctx.lineWidth = 4; dctx.shadowColor = "hsl(45,100%,60%)"; dctx.shadowBlur = 16;
+  dctx.beginPath();
+  [[-62,30],[-62,-6],[-36,14],[-16,-26],[0,8],[16,-26],[36,14],[62,-6],[62,30]].forEach(([px,py],j)=> j ? dctx.lineTo(c+px,cy+py) : dctx.moveTo(c+px,cy+py));
+  dctx.closePath(); dctx.stroke(); dctx.shadowBlur = 0;
+  return demoCv;
+}
+const DEMO = { kind:"demo", credit:"Demo", sentence:"Look into my mirror and you'll wear a crown of light, because everyone deserves one." };
+
+async function loadPieces(){
+  try {
+    const set = new URLSearchParams(location.search).get("set");
+    const listFile = set && /^[a-z0-9-]+$/i.test(set) ? set + ".json" : "clips.json";
+    const res = await fetch(listFile, { cache:"no-cache" });
+    const data = await res.json();
+    pieces = (data.pieces || []).filter(p => p && p.file).map(p => ({
+      kind: /\.(png|jpe?g|webp|gif)$/i.test(p.file) ? "image" : "video",
+      file: p.file, credit: p.credit || "Untitled", sentence: p.sentence || "", el: null }));
+  } catch(e) { pieces = []; }
+  if (!pieces.length) pieces = [DEMO];
+  const n = pieces.filter(p=>p.kind!=="demo").length;
+  const isSet = !!new URLSearchParams(location.search).get("set");
+  $("countLine").textContent = n ? `${n} student piece${n===1?"":"s"} · Fall 2026${isSet ? " · class set" : ""}` : "Student work arrives after the November critique. Try the demo.";
+  try { const h = parseInt(location.hash.slice(1),10); if (h >= 1 && h <= pieces.length) cur = h-1; } catch(e){}
+}
+
+function ensureEl(i){
+  const p = pieces[i]; if (!p || p.kind==="demo" || p.el) return;
+  if (p.kind==="image"){ const im = new Image(); im.src = p.file; p.el = im; return; }
+  const v = document.createElement("video");
+  v.muted = true; v.loop = true; v.playsInline = true; v.setAttribute("playsinline",""); v.setAttribute("muted","");
+  v.preload = "auto"; v.src = p.file; p.el = v;
+}
+function release(i){
+  const p = pieces[i]; if (!p || !p.el || p.kind!=="video") return;
+  p.el.pause(); p.el.removeAttribute("src"); p.el.load(); p.el = null;
+}
+function source(i, now){
+  const p = pieces[i]; if (!p) return null;
+  if (p.kind==="demo") return renderDemo(now);
+  if (!p.el) return null;
+  if (p.kind==="image") return p.el.complete && p.el.naturalWidth ? p.el : null;
+  return p.el.readyState >= 2 ? p.el : null;
+}
+function show(i, dir){
+  const n = pieces.length;
+  const prev = cur;
+  cur = ((i % n) + n) % n;
+  // keep current and its neighbours loaded; free the rest
+  pieces.forEach((_,k)=>{ const d = Math.min(Math.abs(k-cur), n-Math.abs(k-cur)); if (d > 1) release(k); });
+  ensureEl(cur); ensureEl((cur+1)%n); ensureEl((cur-1+n)%n);
+  pieces.forEach((p,k)=>{ if (p.kind==="video" && p.el){ if (k===cur) p.el.play().catch(()=>{}); else p.el.pause(); } });
+  const p = pieces[cur];
+  $("who").textContent = p.credit;
+  const s = p.sentence || "";
+  const m = s.match(/^(.*?you'?ll wear\s+)(.*?)(,\s*because.*)?$/i);
+  const said = $("said"); said.textContent = "";
+  if (m){ said.append(document.createTextNode(m[1])); const b = document.createElement("b"); b.textContent = m[2]; said.append(b); if (m[3]) said.append(document.createTextNode(m[3])); }
+  else said.textContent = s;
+  $("counter").textContent = `${cur+1} / ${n}`;
+  try { history.replaceState(null, "", "#" + (cur+1)); } catch(e){}
+  if (prev !== cur) fadeIn = 0;
+  renderList();
+}
+let fadeIn = 1;
+
+/* ---------- Camera + tracking ---------- */
+let facing = "user", detector = null, lastVT = -1, faces = [], trackerState = "off";
+async function startCamera(){
+  if (cam.srcObject) cam.srcObject.getTracks().forEach(t=>t.stop());
+  cam.srcObject = await navigator.mediaDevices.getUserMedia({ audio:false,
+    video:{ facingMode:facing, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} } });
+  await cam.play();
+}
+async function loadDetector(){
+  if (detector) return;
+  trackerState = "loading";
+  try {
+    const mp = await import(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VER}/vision_bundle.mjs`);
+    const fs = await mp.FilesetResolver.forVisionTasks(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VER}/wasm`);
+    const opts = d => ({ baseOptions:{ modelAssetPath:MODEL, delegate:d }, runningMode:"VIDEO", minDetectionConfidence:0.5 });
+    try { detector = await mp.FaceDetector.createFromOptions(fs, opts("GPU")); }
+    catch(e){ detector = await mp.FaceDetector.createFromOptions(fs, opts("CPU")); }
+    trackerState = "ready";
+  } catch(e){ console.error(e); trackerState = "failed"; }
+}
+function coverFit(vw, vh){ const s = Math.max(W/vw, H/vh); return { s, ox:(W-vw*s)/2, oy:(H-vh*s)/2 }; }
+function detect(now){
+  if (!detector || cam.readyState < 2 || cam.currentTime === lastVT) return;
+  lastVT = cam.currentTime;
+  let res; try { res = detector.detectForVideo(cam, now); } catch(e){ return; }
+  const vw = cam.videoWidth, vh = cam.videoHeight, f = coverFit(vw, vh), mir = facing === "user";
+  faces = (res.detections||[]).map(d=>{
+    const k = d.keypoints; if (!k || k.length < 4) return null;
+    const P = p => ({ x:(mir ? 1-p.x : p.x)*vw, y:p.y*vh });
+    let e1 = P(k[0]), e2 = P(k[1]); const mo = P(k[3]);
+    if (e1.x > e2.x){ const t=e1; e1=e2; e2=t; }
+    const mid = { x:(e1.x+e2.x)/2, y:(e1.y+e2.y)/2 };
+    const m = Math.max(Math.hypot(e2.x-e1.x, e2.y-e1.y), Math.hypot(mo.x-mid.x, mo.y-mid.y)*MOUTH_K);
+    return { x:f.ox + mid.x*f.s, y:f.oy + mid.y*f.s, m:m*f.s, roll:Math.atan2(e2.y-e1.y, e2.x-e1.x) };
+  }).filter(Boolean).slice(0, MAX_FACES);
+}
+
+/* ---------- Tracks (smoothing + fades) ---------- */
+const tracks = []; let lastFace = 0;
+function updateTracks(list, dt){
+  const used = new Set();
+  tracks.forEach(tr=>{
+    let best=-1, bd=Infinity;
+    list.forEach((f,i)=>{ if (used.has(i)) return; const d = Math.hypot(f.x-tr.tx, f.y-tr.ty); if (d<bd){ bd=d; best=i; } });
+    if (best>=0 && bd < Math.max(tr.m, list[best].m)*5){ const f = list[best]; used.add(best); Object.assign(tr,{tx:f.x,ty:f.y,tm:f.m,tr:f.roll,miss:0}); }
+    else tr.miss += dt;
+  });
+  list.forEach((f,i)=>{ if (!used.has(i) && tracks.length < MAX_FACES) tracks.push({x:f.x,y:f.y,m:f.m,roll:f.roll,tx:f.x,ty:f.y,tm:f.m,tr:f.roll,miss:0,a:0}); });
+  const k = 1 - Math.exp(-dt*14);
+  for (let i=tracks.length-1;i>=0;i--){
+    const t = tracks[i];
+    t.x += (t.tx-t.x)*k; t.y += (t.ty-t.y)*k; t.m += (t.tm-t.m)*k;
+    let dr = t.tr - t.roll; dr = Math.atan2(Math.sin(dr),Math.cos(dr)); t.roll += dr*k;
+    t.a = t.miss > .25 ? Math.max(0, t.a - dt/.4) : Math.min(1, t.a + dt/.3);
+    if (t.miss > .25 && t.a <= 0) tracks.splice(i,1);
+  }
+  if (list.length) lastFace = performance.now();
+}
+
+/* ---------- Drawing ---------- */
+const off = document.createElement("canvas"), octx = off.getContext("2d");
+function drawPiece(src, x, y, m, roll, alpha, c){
+  if (!src || alpha <= .002) return;
+  const size = TPL.SIZE * m / TPL.EYE;
+  const n = Math.max(16, Math.min(1080, Math.ceil(size*DPR)));
+  if (off.width !== n){ off.width = n; off.height = n; }
+  octx.globalCompositeOperation = "source-over"; octx.clearRect(0,0,n,n);
+  octx.filter = "contrast(1.18)"; octx.drawImage(src,0,0,n,n); octx.filter = "none";
+  const g = octx.createRadialGradient(n/2,n/2,n*.4,n/2,n/2,n*.5);
+  g.addColorStop(0,"rgba(0,0,0,1)"); g.addColorStop(1,"rgba(0,0,0,0)");
+  octx.globalCompositeOperation = "destination-in"; octx.fillStyle = g; octx.fillRect(0,0,n,n);
+  c.save(); c.globalCompositeOperation = "screen"; c.globalAlpha = Math.min(1, alpha);
+  c.translate(x,y); c.rotate(roll);
+  const s = size/TPL.SIZE; c.drawImage(off, -TPL.AX*s, -TPL.AY*s, size, size); c.restore();
+}
+
+let started = false, lastT = performance.now();
+function frame(now){
+  const dt = Math.min(.1, (now-lastT)/1000); lastT = now;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
+  ctx.fillStyle = "#000"; ctx.fillRect(0,0,W,H);
+
+  if (!started){
+    // start screen: the demo floating where a head would be
+    const startTop = $("start").querySelector(".kicker").getBoundingClientRect().top;
+    const sz = Math.min(W*1.05, Math.max(160, startTop - H*0.03) * 1.05);
+    ctx.globalCompositeOperation = "screen";
+    ctx.drawImage(renderDemo(now), (W-sz)/2, Math.max(0, (startTop - sz)/2), sz, sz);
+    requestAnimationFrame(frame); return;
+  }
+
+  detect(now);
+  updateTracks(trackerState === "ready" ? faces : [], dt);
+  fadeIn = Math.min(1, fadeIn + dt/.35);
+
+  if (cam.readyState >= 2){
+    const vw = cam.videoWidth, vh = cam.videoHeight, f = coverFit(vw, vh);
+    ctx.save();
+    if (facing === "user"){ ctx.translate(f.ox + vw*f.s, f.oy); ctx.scale(-f.s, f.s); }
+    else { ctx.translate(f.ox, f.oy); ctx.scale(f.s, f.s); }
+    ctx.drawImage(cam, 0, 0); ctx.restore();
+  }
+
+  const src = source(cur, now);
+  if (trackerState === "ready"){
+    tracks.forEach(t=>drawPiece(src, t.x, t.y, t.m, t.roll, t.a*fadeIn, ctx));
+  } else if (trackerState === "failed"){
+    drawPiece(src, W/2, H*0.42, Math.min(W,H)*0.09, 0, fadeIn, ctx);
+  }
+
+  const hint = $("hint");
+  const lost = trackerState === "ready" && !tracks.length && now - lastFace > 1500;
+  if (trackerState === "loading"){ hint.textContent = "Loading face tracking…"; hint.hidden = false; }
+  else if (trackerState === "failed"){ hint.textContent = "Face tracking didn't load. Check your connection and reload."; hint.hidden = false; }
+  else if (lost){ hint.textContent = "Hold your phone at arm's length and look at the screen"; hint.hidden = false; }
+  else hint.hidden = true;
+
+  recFrame();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---------- Start ---------- */
+$("startBtn").addEventListener("click", async ()=>{
+  const msg = $("startMsg");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ msg.textContent = "This browser can't use the camera. Try Safari on iPhone or Chrome on Android."; return; }
+  msg.textContent = "Starting the camera…";
+  try { await startCamera(); }
+  catch(e){
+    msg.textContent = e && e.name === "NotAllowedError" ? "Camera blocked. Allow camera access for this site in your browser settings, then try again." : "The camera didn't start. Close other apps using it and try again.";
+    return;
+  }
+  // unlock video playback inside the tap
+  ensureEl(cur); const p = pieces[cur]; if (p && p.kind==="video" && p.el) p.el.play().catch(()=>{});
+  started = true;
+  $("start").hidden = true; $("top").hidden = false; $("bottom").hidden = false;
+  show(cur);
+  try { await navigator.wakeLock?.request("screen"); } catch(e){}
+  loadDetector();
+});
+
+/* ---------- Navigation ---------- */
+$("nextBtn").addEventListener("click", ()=>show(cur+1, 1));
+$("prevBtn").addEventListener("click", ()=>show(cur-1, -1));
+document.addEventListener("keydown", e=>{ if (!started) return; if (e.key==="ArrowRight") show(cur+1); if (e.key==="ArrowLeft") show(cur-1); });
+let sx = null, sy = null;
+stage.addEventListener("pointerdown", e=>{ sx = e.clientX; sy = e.clientY; });
+stage.addEventListener("pointerup", e=>{
+  if (sx === null || !started) return;
+  const dx = e.clientX - sx, dy = e.clientY - sy; sx = null;
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)*1.3) show(cur + (dx < 0 ? 1 : -1));
+});
+$("flipBtn").addEventListener("click", async ()=>{
+  facing = facing === "user" ? "environment" : "user";
+  tracks.length = 0; faces = [];
+  try { await startCamera(); } catch(e){ facing = facing === "user" ? "environment" : "user"; try { await startCamera(); } catch(e2){} }
+});
+
+/* ---------- Sheets ---------- */
+function openSheet(id){ $(id).hidden = false; }
+document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click", ()=>b.closest(".sheet").hidden = true));
+document.querySelectorAll(".sheet").forEach(s=>s.addEventListener("click", e=>{ if (e.target === s) s.hidden = true; }));
+$("openList").addEventListener("click", ()=>openSheet("listSheet"));
+$("infoBtn").addEventListener("click", ()=>openSheet("aboutSheet"));
+function renderList(){
+  const ul = $("list"); ul.innerHTML = "";
+  pieces.forEach((p,i)=>{
+    const li = document.createElement("li"), b = document.createElement("button");
+    if (i === cur) b.setAttribute("aria-current","true");
+    const n = document.createElement("span"); n.className = "n"; n.textContent = i+1;
+    const t = document.createElement("span");
+    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = p.credit;
+    const sn = document.createElement("span"); sn.className = "sn"; sn.textContent = p.sentence;
+    t.append(nm, sn); b.append(n, t);
+    b.addEventListener("click", ()=>{ show(i); $("listSheet").hidden = true; });
+    li.append(b); ul.append(li);
+  });
+}
+
+/* ---------- Caption (photos and videos) ---------- */
+function drawCaption(x, w, h){
+  const p = pieces[cur], pad = Math.round(w*0.045), fs = Math.round(w*0.034);
+  const grad = x.createLinearGradient(0, h*0.78, 0, h);
+  grad.addColorStop(0,"rgba(0,0,0,0)"); grad.addColorStop(1,"rgba(0,0,0,.75)");
+  x.fillStyle = grad; x.fillRect(0, h*0.78, w, h*0.22);
+  x.fillStyle = "#f3f1ec"; x.textBaseline = "alphabetic";
+  x.font = `italic ${Math.round(fs*1.5)}px "Instrument Serif", Georgia, serif`;
+  x.fillText("Wear My Mirror", pad, h - pad - fs*1.5);
+  x.font = `${fs}px "Instrument Sans", system-ui, sans-serif`;
+  x.fillStyle = "#cfccc5";
+  x.fillText(`${p.credit} · ART 104A · Davis & Elkins College`, pad, h - pad);
+}
+
+/* ---------- Photo ---------- */
+let shotFile = null, shotURL = null;
+$("shutter").addEventListener("click", ()=>{
+  const fl = $("flash"); fl.style.opacity = .8; setTimeout(()=>fl.style.opacity = 0, 90);
+  const c = document.createElement("canvas"); c.width = stage.width; c.height = stage.height;
+  const x = c.getContext("2d"); x.drawImage(stage, 0, 0);
+  drawCaption(x, c.width, c.height);
+  c.toBlob(blob=>{
+    if (!blob) return;
+    if (shotURL) URL.revokeObjectURL(shotURL);
+    shotURL = URL.createObjectURL(blob);
+    shotFile = new File([blob], "wear-my-mirror.jpg", { type:"image/jpeg" });
+    showResult("photo", shotURL, shotFile);
+  }, "image/jpeg", 0.9);
+});
+/* ---------- Video ---------- */
+const REC_MAX = 15;
+const recCv = document.createElement("canvas"), rctx = recCv.getContext("2d");
+let recorder = null, recChunks = [], recStart = 0, recType = "";
+function pickType(){
+  if (!window.MediaRecorder) return null;
+  return ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"].find(t => { try { return MediaRecorder.isTypeSupported(t); } catch(e){ return false; } }) || "";
+}
+if (pickType() === null || !recCv.captureStream) $("recBtn").hidden = true;
+function recFrame(){
+  if (!recorder) return;
+  rctx.drawImage(stage, 0, 0, recCv.width, recCv.height);
+  drawCaption(rctx, recCv.width, recCv.height);
+  const sec = (performance.now() - recStart)/1000;
+  $("recTime").textContent = `● 0:${String(Math.min(REC_MAX, Math.floor(sec))).padStart(2,"0")}`;
+  if (sec >= REC_MAX) stopRec();
+}
+function startRec(){
+  recType = pickType(); if (recType === null) return;
+  const w = 720, h = Math.round(w * H / W / 2) * 2;
+  recCv.width = w; recCv.height = h;
+  rctx.drawImage(stage, 0, 0, w, h);
+  const stream = recCv.captureStream(30);
+  try { recorder = new MediaRecorder(stream, recType ? { mimeType: recType, videoBitsPerSecond: 4e6 } : { videoBitsPerSecond: 4e6 }); }
+  catch(e){ recorder = null; return; }
+  recChunks = [];
+  recorder.ondataavailable = e => { if (e.data && e.data.size) recChunks.push(e.data); };
+  recorder.onstop = () => {
+    const type = recorder.mimeType || recType || "video/webm";
+    const ext = /mp4/.test(type) ? "mp4" : "webm";
+    const blob = new Blob(recChunks, { type });
+    recorder = null;
+    if (shotURL) URL.revokeObjectURL(shotURL);
+    shotURL = URL.createObjectURL(blob);
+    shotFile = new File([blob], "wear-my-mirror." + ext, { type });
+    showResult("video", shotURL, shotFile, ext);
+  };
+  recorder.start(250);
+  recStart = performance.now();
+  $("recBtn").setAttribute("aria-pressed", "true"); $("recBtn").setAttribute("aria-label", "Stop recording");
+  $("recTime").hidden = false;
+}
+function stopRec(){
+  if (!recorder || recorder.state === "inactive") return;
+  recorder.stop();
+  $("recBtn").setAttribute("aria-pressed", "false"); $("recBtn").setAttribute("aria-label", "Record a video");
+  $("recTime").hidden = true;
+}
+$("recBtn").addEventListener("click", ()=> recorder ? stopRec() : startRec());
+
+function showResult(kind, url, file, ext){
+  const img = $("shotImg"), vid = $("shotVid");
+  $("shotTitle").textContent = kind === "video" ? "Your video" : "Your photo";
+  if (kind === "video"){ img.hidden = true; vid.hidden = false; vid.src = url; vid.play().catch(()=>{}); }
+  else { vid.hidden = true; vid.pause(); vid.removeAttribute("src"); img.hidden = false; img.src = url; }
+  const save = $("saveLink"); save.href = url; save.download = kind === "video" ? "wear-my-mirror." + ext : "wear-my-mirror.jpg";
+  $("shareBtn").hidden = !(navigator.canShare && navigator.canShare({ files:[file] }));
+  $("shotTip").textContent = kind === "video"
+    ? (ext === "mp4" ? "Tap Share, then Save Video, to put it in your Photos." : "This phone saved a WebM video. If Premiere won't open it, use your phone's screen recording instead.")
+    : "On iPhone, you can also press and hold the photo, then tap Save to Photos.";
+  openSheet("shotSheet");
+}
+document.querySelector("#shotSheet [data-close]").addEventListener("click", ()=>{ const v = $("shotVid"); v.pause(); });
+
+$("shareBtn").addEventListener("click", async ()=>{
+  try { await navigator.share({ files:[shotFile], title:"Wear My Mirror" }); } catch(e){}
+});
+
+document.addEventListener("visibilitychange", ()=>{
+  const p = pieces[cur];
+  if (document.hidden){ stopRec(); if (p && p.el && p.kind==="video") p.el.pause(); }
+  else if (started){ if (p && p.el && p.kind==="video") p.el.play().catch(()=>{}); if (cam.paused) cam.play().catch(()=>{}); }
+});
+
+loadPieces();
+</script>
+</body>
+</html>
